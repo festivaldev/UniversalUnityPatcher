@@ -1,0 +1,2 @@
+# UniversalUnityPatcher
+Patches Unity assemblies
