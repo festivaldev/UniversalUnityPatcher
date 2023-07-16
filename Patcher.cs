@@ -4,7 +4,9 @@ using Mono.Cecil.Rocks;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Xml;
@@ -38,18 +40,55 @@ namespace UniversalUnityPatcher {
 			}
 		}
 
-		public static void ApplyPatches() {
+		private static void ThrowError(string message) {
+			if (MainWindow.Instance != null) {
+				MainWindow.Instance.WriteToConsole($"[ERROR] {message}");
+			} else {
+				MessageBox.Show(message, "Universal Unity Patcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			}
+		}
+
+		public static void ApplyPatches(string outputPath = null) {
 			if (loadedPatches.Patches.Count() == 0)
 				return;
 
-			MainWindow.Instance.ClearConsole();
-			MainWindow.Instance.WriteToConsole("[Info] Applying patches...");
+			MainWindow.Instance?.ClearConsole();
+			MainWindow.Instance?.WriteToConsole("[INFO] Applying patches...");
+
+			var ignoreAlreadyPatched = false;
 
 			foreach (Patch patch in loadedPatches.Patches) {
 				assemblyResolver.Dispose();
 
 				if (!patch.IsEnabled || patch.Assemblies.AppliesTo == null)
 					continue;
+
+				List<string> hashsumMismatches = new List<string>();
+
+				foreach (var fileHash in patch.FileHashes) {
+					if (!File.Exists(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) continue;
+					if (fileHash.ValidHashes.Count == 0) continue;
+
+					using (FileStream fileStream = File.OpenRead(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) {
+						using (var sha256 = SHA256.Create()) {
+							var sha256sum = BitConverter.ToString(sha256.ComputeHash(fileStream)).Replace("-", "").ToLowerInvariant();
+
+							if (fileHash.ValidHashes.Find(_ => string.Equals(sha256sum, _, StringComparison.OrdinalIgnoreCase)) == null) {
+								hashsumMismatches.Add(fileHash.Name);
+							}
+						}
+					}
+				}
+
+				if (hashsumMismatches.Count > 0) {
+					var mismatchList = string.Join("\r\n", hashsumMismatches.Select(_ => $"• {_}"));
+					if (MessageBox.Show($"The following files appear to have been patched already or otherwise modified:\r\n\r\n{mismatchList}\r\n\r\nContinuing can break things horribly. Do you wish to continue patching?", "Hash Sum Mismatch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) {
+						MainWindow.Instance?.WriteToConsole("Patching cancelled by user.");
+						return;
+					} else {
+						ignoreAlreadyPatched = true;
+					}
+				}
 
 				using (AssemblyDefinition assemblyDef = AssemblyDefinition.ReadAssembly(Path.Combine(Path.GetFullPath(assemblyPath), patch.Assemblies.AppliesTo), new ReaderParameters { AssemblyResolver = assemblyResolver, ReadWrite = true })) {
 					foreach (PatchAssemblyReference reference in patch.Assemblies.References) {
@@ -60,8 +99,8 @@ namespace UniversalUnityPatcher {
 						List<TypeDefinition> typeList = assemblyDef.MainModule.Types.Where(_ => type.Match != null ? Regex.IsMatch(_.Name, type.Match) : _.Name == type.Name).ToList();
 
 						if (typeList.Count == 0) {
-							MainWindow.Instance.WriteToConsole($"Error] Couldn't find type/class matching \"{(type.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!");
-							//MessageBox.Show($"Couldn't find type/class matching \"{(type.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+							ThrowError($"Couldn't find type/class matching \"{(type.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!");
+
 							continue;
 						}
 
@@ -71,8 +110,8 @@ namespace UniversalUnityPatcher {
 									List<MethodDefinition> methodList = typeDef.Methods.Where(_ => methodOp.Match != null ? Regex.IsMatch(_.Name, methodOp.Match) : _.Name == methodOp.Name).ToList();
 
 									if (methodList.Count == 0) {
-										MainWindow.Instance.WriteToConsole($"Error] Couldn't find method(s) matching \"{(methodOp.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!");
-										//MessageBox.Show($"Couldn't find method(s) matching \"{(methodOp.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+										ThrowError($"Couldn't find method(s) matching \"{(methodOp.Name)}\" in assembly \"{assemblyDef.Name.Name}\"!");
+
 										continue;
 									}
 
@@ -85,7 +124,7 @@ namespace UniversalUnityPatcher {
 										if (methodOp.Instructions.Count() == 0)
 											continue;
 
-										MainWindow.Instance.WriteToConsole($"[Info] Attempting to patch method \"{methodDef.Name}\" in type/class \"{typeDef.Name}\"... ");
+										MainWindow.Instance?.WriteToConsole($"[INFO] Attempting to patch method \"{methodDef.Name}\" in type/class \"{typeDef.Name}\"... ");
 
 										Instruction beginInstr = null, prevInstr = null;
 										int startIndex = (methodBody.Instructions.Count - 1);
@@ -119,8 +158,8 @@ namespace UniversalUnityPatcher {
 													Type t = Type.GetType($"UniversalUnityPatcher.Instructions.{patchInstruction.OpCode}");
 
 													if (t == null) {
-														MainWindow.Instance.WriteToConsole($"[Error] Couldn't find OpCode named \"{patchInstruction.OpCode}\"!");
-														//MessageBox.Show($"Couldn't find OpCode named \"{patchInstruction.OpCode}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+														ThrowError($"Couldn't find OpCode named \"{patchInstruction.OpCode}\"!");
+
 														continue;
 													}
 
@@ -128,17 +167,34 @@ namespace UniversalUnityPatcher {
 													Instruction instr = opCode.ParseInstruction(processor, assemblyDef, typeDef, methodDef, patchInstruction);
 
 													if (instr == null) {
-														MainWindow.Instance.WriteToConsole($"[Error] Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!");
-														//MessageBox.Show($"Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+														ThrowError($"Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!");
+
 														continue;
 													}
 
 													if (patchInstruction.Index >= 0) {
+														var _instr = methodBody.Instructions.ElementAt(patchInstruction.Index);
+
+														if (!ignoreAlreadyPatched && opCode.CompareInstruction(_instr, instr)) {
+															ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+															return;
+														}
+
 														processor.InsertBefore(methodBody.Instructions.ElementAt(patchInstruction.Index), instr);
 													} else {
 														if (beginInstr != null) {
+															if (!ignoreAlreadyPatched && opCode.CompareInstruction(beginInstr, instr)) {
+																ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+																return;
+															}
+
 															processor.InsertBefore(beginInstr, instr);
 														} else if (prevInstr != null) {
+															if (!ignoreAlreadyPatched && opCode.CompareInstruction(prevInstr, instr)) {
+																ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+																return;
+															}
+
 															processor.InsertAfter(prevInstr, instr);
 														}
 													}
@@ -155,9 +211,9 @@ namespace UniversalUnityPatcher {
 													foreach (PatchInstruction patchInstruction in replaceOp.Replacements) {
 														Type t = Type.GetType($"UniversalUnityPatcher.Instructions.{patchInstruction.OpCode}");
 
-														if(t == null) {
-															MainWindow.Instance.WriteToConsole($"[Error] Couldn't find OpCode named \"{patchInstruction.OpCode}\"!");
-															//MessageBox.Show($"Couldn't find OpCode named \"{patchInstruction.OpCode}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+														if (t == null) {
+															ThrowError($"Couldn't find OpCode named \"{patchInstruction.OpCode}\"!");
+
 															continue;
 														}
 
@@ -165,9 +221,14 @@ namespace UniversalUnityPatcher {
 														Instruction instr = opCode.ParseInstruction(processor, assemblyDef, typeDef, methodDef, patchInstruction);
 
 														if (instr == null) {
-															MainWindow.Instance.WriteToConsole($"[Error] Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!");
-															//MessageBox.Show($"Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+															ThrowError($"Invalid instruction for OpCode \"{patchInstruction.OpCode}\"!");
+
 															continue;
+														}
+
+														if (!ignoreAlreadyPatched && opCode.CompareInstruction(prevInstr, instr)) {
+															ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+															return;
 														}
 
 														processor.InsertAfter(prevInstr, instr);
@@ -210,10 +271,15 @@ namespace UniversalUnityPatcher {
 													foreach (Instruction instruction in methodBody.Instructions) {
 														if (instruction.OpCode == OpCodes.Ldstr) {
 															var textToReplace = (string)instruction.Operand;
-															//if (textToReplace.Contains(textReplaceOp.TextToReplace)) {
 															if (textToReplace.Contains(textReplaceOp.TextToReplace) || Regex.Match(textToReplace, textReplaceOp.TextToReplace) != null) {
-																//instruction.Operand = textToReplace.Replace(textReplaceOp.TextToReplace, textReplaceOp.ReplacementText);
-																instruction.Operand = new Regex(textReplaceOp.TextToReplace).Replace(textToReplace, textReplaceOp.ReplacementText);
+																var replacedText = new Regex(textReplaceOp.TextToReplace).Replace(textToReplace, textReplaceOp.ReplacementText);
+
+																if (!ignoreAlreadyPatched && instruction.Operand.Equals(replacedText)) {
+																	ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+																	return;
+																}
+
+																instruction.Operand = replacedText;
 															}
 														}
 													}
@@ -229,7 +295,7 @@ namespace UniversalUnityPatcher {
 												methodOp.ExceptionHandler.HandlerEnd < 0 ||
 												methodOp.ExceptionHandler.TryStart < 0 ||
 												methodOp.ExceptionHandler.TryEnd < 0) {
-												MainWindow.Instance.WriteToConsole("Error: Invalid ExceptionHandler definition");
+												MainWindow.Instance?.WriteToConsole("Error: Invalid ExceptionHandler definition");
 												continue;
 											}
 
@@ -254,7 +320,7 @@ namespace UniversalUnityPatcher {
 										case "TextReplaceOperation": {
 											TextReplaceOperation textReplaceOp = (TextReplaceOperation)patchOp;
 
-											MainWindow.Instance.WriteToConsole($"[Info] Replacing string \"{textReplaceOp.TextToReplace}\" with \"{textReplaceOp.ReplacementText}\" in type/class \"{typeDef.Name}\"");
+											MainWindow.Instance?.WriteToConsole($"[INFO] Replacing string \"{textReplaceOp.TextToReplace}\" with \"{textReplaceOp.ReplacementText}\" in type/class \"{typeDef.Name}\"");
 
 											foreach (MethodDefinition methodDef in typeDef.Methods) {
 												MethodBody methodBody = methodDef.Body;
@@ -266,10 +332,15 @@ namespace UniversalUnityPatcher {
 													if (instruction.OpCode == OpCodes.Ldstr) {
 														var textToReplace = (string)instruction.Operand;
 
-														//if (textToReplace.Contains(textReplaceOp.TextToReplace)) {
 														if (textToReplace.Contains(textReplaceOp.TextToReplace) || Regex.Match(textToReplace, textReplaceOp.TextToReplace) != null) {
-															//instruction.Operand = textToReplace.Replace(textReplaceOp.TextToReplace, textReplaceOp.ReplacementText);
-															instruction.Operand = new Regex(textReplaceOp.TextToReplace).Replace(textToReplace, textReplaceOp.ReplacementText);
+															var replacedText = new Regex(textReplaceOp.TextToReplace).Replace(textToReplace, textReplaceOp.ReplacementText);
+
+															if (!ignoreAlreadyPatched && instruction.Operand.Equals(replacedText)) {
+																ThrowError("Assembly appears to have been patched already. Patching will not continue.");
+																return;
+															}
+
+															instruction.Operand = replacedText;
 														}
 													}
 												}
@@ -286,36 +357,42 @@ namespace UniversalUnityPatcher {
 						}
 					}
 
-					assemblyDef.Write(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"));
-					assemblyResolver.Dispose();
-					assemblyDef.Dispose();
+					if (!string.IsNullOrWhiteSpace(outputPath)) {
+						if (!Directory.Exists(outputPath)) {
+							Directory.CreateDirectory(outputPath);
+						}
 
-					if (File.Exists(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"))) {
-						File.Delete(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
+						assemblyDef.Write(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll"));
+
+						assemblyResolver.Dispose();
+						assemblyDef.Dispose();
+					} else {
+						assemblyDef.Write(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"));
+
+						assemblyResolver.Dispose();
+						assemblyDef.Dispose();
+
+						if (File.Exists(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"))) {
+							File.Delete(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
+						}
+
+						File.Move(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"), Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
 					}
 
-					File.Move(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"), Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
-
-					MainWindow.Instance.WriteToConsole($"[Info] Writing file {Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll")}...");
+					MainWindow.Instance?.WriteToConsole($"[INFO] Writing file {Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll")}...");
 				}
 			}
 
-			MainWindow.Instance.WriteToConsole("Done!");
+			MainWindow.Instance?.WriteToConsole("Done!");
 		}
 
 		public static int LoadPatches(string path) {
 			XmlSerializer ser = new XmlSerializer(typeof(PatchDefinition));
 			using (XmlReader reader = XmlReader.Create(path)) {
-				try {
-					loadedPatches = (PatchDefinition)ser.Deserialize(reader);
+				loadedPatches = (PatchDefinition)ser.Deserialize(reader);
 
-					return loadedPatches.Patches.Count();
-				} catch (Exception e) {
-					MessageBox.Show($"Failed to load patches from \"{Path.GetFullPath(path)}\":\n{e.Message}", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-				}
+				return loadedPatches.Patches.Count();
 			}
-
-			return 0;
 		}
 
 		public static AssemblyDefinition ResolveAssembly(string name, string version = "0.0.0.0") {

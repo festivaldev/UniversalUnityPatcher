@@ -12,5 +12,12 @@ namespace UniversalUnityPatcher.Instructions {
 
 			return processor.Create(OpCodes.Ldstr, patchInstruction.Value);
 		}
+
+		public override bool CompareInstruction(Instruction a, Instruction b) {
+			if (!a.OpCode.Equals(b.OpCode)) return false;
+			if (!a.Operand.GetType().Equals(b.Operand.GetType())) return false;
+
+			return true;
+		}
 	}
 }

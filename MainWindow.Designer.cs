@@ -24,21 +24,22 @@ namespace UniversalUnityPatcher {
 		/// the contents of this method with the code editor.
 		/// </summary>
 		private void InitializeComponent() {
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainWindow));
 			this.groupBox2 = new System.Windows.Forms.GroupBox();
 			this.ConsoleWindow = new System.Windows.Forms.RichTextBox();
 			this.AvailablePatches = new System.Windows.Forms.CheckedListBox();
 			this.PatchButton = new System.Windows.Forms.Button();
 			this.groupBox3 = new System.Windows.Forms.GroupBox();
-			this.LoadAssemblyButton = new System.Windows.Forms.Button();
 			this.AssemblyPathLabel = new System.Windows.Forms.Label();
+			this.LoadAssemblyButton = new System.Windows.Forms.Button();
 			this.groupBox4 = new System.Windows.Forms.GroupBox();
 			this.PatchesPathLabel = new System.Windows.Forms.Label();
 			this.LoadPatchesButton = new System.Windows.Forms.Button();
 			this.groupBox5 = new System.Windows.Forms.GroupBox();
 			this.groupBox6 = new System.Windows.Forms.GroupBox();
-			this.CreateBackupCheckbox = new System.Windows.Forms.CheckBox();
 			this.BackupPathLabel = new System.Windows.Forms.Label();
 			this.SetBackupPathButton = new System.Windows.Forms.Button();
+			this.CreateBackupCheckbox = new System.Windows.Forms.CheckBox();
 			this.label2 = new System.Windows.Forms.Label();
 			this.groupBox2.SuspendLayout();
 			this.groupBox3.SuspendLayout();
@@ -112,6 +113,16 @@ namespace UniversalUnityPatcher {
 			this.groupBox3.TabStop = false;
 			this.groupBox3.Text = "Assembly Directory";
 			// 
+			// AssemblyPathLabel
+			// 
+			this.AssemblyPathLabel.AutoEllipsis = true;
+			this.AssemblyPathLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+			this.AssemblyPathLabel.Location = new System.Drawing.Point(6, 24);
+			this.AssemblyPathLabel.Name = "AssemblyPathLabel";
+			this.AssemblyPathLabel.Size = new System.Drawing.Size(232, 13);
+			this.AssemblyPathLabel.TabIndex = 1;
+			this.AssemblyPathLabel.Text = "None";
+			// 
 			// LoadAssemblyButton
 			// 
 			this.LoadAssemblyButton.AutoSize = true;
@@ -122,16 +133,6 @@ namespace UniversalUnityPatcher {
 			this.LoadAssemblyButton.Text = "...";
 			this.LoadAssemblyButton.UseVisualStyleBackColor = true;
 			this.LoadAssemblyButton.Click += new System.EventHandler(this.LoadAssemblyButton_Click);
-			// 
-			// AssemblyPathLabel
-			// 
-			this.AssemblyPathLabel.AutoEllipsis = true;
-			this.AssemblyPathLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-			this.AssemblyPathLabel.Location = new System.Drawing.Point(6, 24);
-			this.AssemblyPathLabel.Name = "AssemblyPathLabel";
-			this.AssemblyPathLabel.Size = new System.Drawing.Size(232, 13);
-			this.AssemblyPathLabel.TabIndex = 1;
-			this.AssemblyPathLabel.Text = "None";
 			// 
 			// groupBox4
 			// 
@@ -188,18 +189,6 @@ namespace UniversalUnityPatcher {
 			this.groupBox6.TabStop = false;
 			this.groupBox6.Text = "Backup";
 			// 
-			// CreateBackupCheckbox
-			// 
-			this.CreateBackupCheckbox.AutoSize = true;
-			this.CreateBackupCheckbox.Checked = true;
-			this.CreateBackupCheckbox.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.CreateBackupCheckbox.Location = new System.Drawing.Point(7, 20);
-			this.CreateBackupCheckbox.Name = "CreateBackupCheckbox";
-			this.CreateBackupCheckbox.Size = new System.Drawing.Size(97, 17);
-			this.CreateBackupCheckbox.TabIndex = 0;
-			this.CreateBackupCheckbox.Text = "Create Backup";
-			this.CreateBackupCheckbox.UseVisualStyleBackColor = true;
-			// 
 			// BackupPathLabel
 			// 
 			this.BackupPathLabel.AutoEllipsis = true;
@@ -219,6 +208,18 @@ namespace UniversalUnityPatcher {
 			this.SetBackupPathButton.Text = "...";
 			this.SetBackupPathButton.UseVisualStyleBackColor = true;
 			// 
+			// CreateBackupCheckbox
+			// 
+			this.CreateBackupCheckbox.AutoSize = true;
+			this.CreateBackupCheckbox.Checked = true;
+			this.CreateBackupCheckbox.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.CreateBackupCheckbox.Location = new System.Drawing.Point(7, 20);
+			this.CreateBackupCheckbox.Name = "CreateBackupCheckbox";
+			this.CreateBackupCheckbox.Size = new System.Drawing.Size(97, 17);
+			this.CreateBackupCheckbox.TabIndex = 0;
+			this.CreateBackupCheckbox.Text = "Create Backup";
+			this.CreateBackupCheckbox.UseVisualStyleBackColor = true;
+			// 
 			// label2
 			// 
 			this.label2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
@@ -226,9 +227,9 @@ namespace UniversalUnityPatcher {
 			this.label2.ForeColor = System.Drawing.SystemColors.ControlDark;
 			this.label2.Location = new System.Drawing.Point(12, 349);
 			this.label2.Name = "label2";
-			this.label2.Size = new System.Drawing.Size(129, 13);
+			this.label2.Size = new System.Drawing.Size(156, 13);
 			this.label2.TabIndex = 6;
-			this.label2.Text = "(c) 2022 Team FESTIVAL";
+			this.label2.Text = "(c) 2022-2023 Team FESTIVAL";
 			// 
 			// MainWindow
 			// 
@@ -242,6 +243,7 @@ namespace UniversalUnityPatcher {
 			this.Controls.Add(this.PatchButton);
 			this.Controls.Add(this.groupBox4);
 			this.Controls.Add(this.groupBox3);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MinimumSize = new System.Drawing.Size(876, 413);
 			this.Name = "MainWindow";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;

@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace UniversalUnityPatcher {
@@ -39,22 +33,23 @@ namespace UniversalUnityPatcher {
 		}
 
 		private void LoadAssemblyButton_Click(object sender, EventArgs e) {
-			FolderBrowserDialog openFolder = new FolderBrowserDialog {
-				Description = "Select a directory containing Unity Assemblies to patch."
-			};
+			using (var openFile = new OpenFileDialog()) {
+				openFile.Title = "Select an Assembly directory";
+				openFile.Filter = "Assembly (*.dll)|*.dll";
 
-			if (openFolder.ShowDialog() == DialogResult.OK) {
-				assemblyPath = openFolder.SelectedPath;
-				AssemblyPathLabel.Text = assemblyPath;
+				if (openFile.ShowDialog() == DialogResult.OK) {
+					assemblyPath = Path.GetDirectoryName(openFile.FileName);
+					AssemblyPathLabel.Text = assemblyPath;
 
-				Patcher.AssemblyPath = assemblyPath;
+					Patcher.AssemblyPath = assemblyPath;
 
-				WriteToConsole($"[Info] Selected Assembly directory: {assemblyPath}");
-			}
+					WriteToConsole($"[INFO] Selected Assembly directory: {assemblyPath}");
+				}
 
-			if (assemblyPath != null && patchPath != null) {
-				if (patchPath.Length > 0 && patchPath.Length > 0) {
-					PatchButton.Enabled = true;
+				if (assemblyPath != null && patchPath != null) {
+					if (patchPath.Length > 0 && patchPath.Length > 0) {
+						PatchButton.Enabled = true;
+					}
 				}
 			}
 		}
@@ -69,8 +64,12 @@ namespace UniversalUnityPatcher {
 				patchPath = openFile.FileName;
 				PatchesPathLabel.Text = Path.GetFileName(patchPath);
 
-				int loadedPatchesCount = Patcher.LoadPatches(patchPath);
-				WriteToConsole($"[Info] Loaded {loadedPatchesCount} patches from {patchPath}");
+				try {
+					int loadedPatchesCount = Patcher.LoadPatches(patchPath);
+					WriteToConsole($"[INFO] Loaded {loadedPatchesCount} patches from {patchPath}");
+				} catch (Exception ex) {
+					WriteToConsole($"[ERROR] Failed to load patches from \"{Path.GetFullPath(patchPath)}\":\n{ex.Message}");
+				}
 
 				if (Patcher.HasLoadedPatches) {
 					AvailablePatches.Items.Clear();
@@ -111,9 +110,6 @@ namespace UniversalUnityPatcher {
 		}
 
 		private void AvailablePatches_ItemCheck(object sender, ItemCheckEventArgs e) {
-			Console.WriteLine(e.Index);
-			Console.WriteLine(e.NewValue == CheckState.Checked);
-
 			Patcher.LoadedPatches.Patches.ElementAt(e.Index).IsEnabled = (e.NewValue == CheckState.Checked);
 		}
 	}

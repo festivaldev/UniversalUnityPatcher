@@ -34,6 +34,9 @@ namespace UniversalUnityPatcher {
 			}
 		}
 
+		[XmlArray]
+		public List<FileHash> FileHashes;
+
 		[XmlElement]
 		public PatchAssemblyList Assemblies;
 
@@ -42,6 +45,18 @@ namespace UniversalUnityPatcher {
 
 		public override string ToString() {
 			return $"[[Patch: {Name}] Enabled = {IsEnabled}; ShortDescription = {ShortDescription}; Description = {Description}]";
+		}
+	}
+
+	public class FileHash {
+		[XmlAttribute]
+		public string Name;
+
+		[XmlElement("string")]
+		public List<string> ValidHashes;
+
+		public override string ToString() {
+			return $"Name: {Name}, ValidHashes({ValidHashes.Count}): [{string.Join(",", ValidHashes)}]";
 		}
 	}
 

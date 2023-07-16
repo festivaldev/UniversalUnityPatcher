@@ -3,6 +3,7 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System;
 using System.Linq;
+using System.Reflection;
 
 namespace UniversalUnityPatcher.Instructions {
 	/// <summary>
@@ -24,14 +25,28 @@ namespace UniversalUnityPatcher.Instructions {
 
 			TypeDefinition typeDefinition = _assemblyDef.MainModule.GetType(typeName);
 
-			var genericAssembly = patchInstruction.Parameters.First();
-			AssemblyDefinition genericAssemblyDef = Patcher.ResolveAssembly(genericAssembly.Assembly);
-			TypeReference genericTypeRef = assemblyDef.MainModule.ImportReference(genericAssemblyDef.MainModule.GetType(genericAssembly.Type));
+			MethodDefinition methodDefinition = typeDefinition.GetConstructors().FirstOrDefault();
+			MethodReference methodReference = assemblyDef.MainModule.ImportReference(methodDefinition);
 
-			GenericInstanceType genericInstanceType = assemblyDef.MainModule.ImportReference(Type.GetType(patchInstruction.Type)).MakeGenericInstanceType(genericTypeRef);
-			MethodReference genericInstanceCtor = Patcher.MakeHostInstanceGeneric(assemblyDef.MainModule.ImportReference(genericInstanceType.Resolve().Methods.First(_ => _.Name == patchInstruction.Method)), genericTypeRef);
+			return processor.Create(OpCodes.Newobj, methodReference);
+		}
 
-			return processor.Create(OpCodes.Newobj, genericInstanceCtor);
+		public override bool CompareInstruction(Instruction a, Instruction b) {
+			if (!a.OpCode.Equals(b.OpCode)) return false;
+			if (!a.Operand.GetType().Equals(b.Operand.GetType())) return false;
+
+			if (a.Operand is MethodReference && b.Operand is MethodReference) {
+				var _a = (MethodReference)a.Operand;
+				var _b = (MethodReference)b.Operand;
+
+				return _a.FullName == _b.FullName &&
+					_a.DeclaringType.FullName == _b.DeclaringType.FullName &&
+					_a.ReturnType.FullName == _b.ReturnType.FullName &&
+					_a.Parameters.All(aParam => _b.Parameters.Any(bParam => aParam.Name == bParam.Name && aParam.ParameterType.FullName == bParam.ParameterType.FullName)) &&
+					_a.GenericParameters.All(aParam => _b.GenericParameters.Any(bParam => aParam.Name == bParam.Name));
+			}
+
+			return false;
 		}
 	}
 }

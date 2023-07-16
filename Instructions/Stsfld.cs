@@ -30,5 +30,21 @@ namespace UniversalUnityPatcher.Instructions {
 
 			return processor.Create(OpCodes.Stsfld, assemblyDef.MainModule.ImportReference(fieldDefinition));
 		}
+
+		public override bool CompareInstruction(Instruction a, Instruction b) {
+			if (!a.OpCode.Equals(b.OpCode)) return false;
+			if (!a.Operand.GetType().Equals(b.Operand.GetType())) return false;
+
+			if (a.Operand is FieldReference && b.Operand is FieldReference) {
+				var _a = (FieldReference)a.Operand;
+				var _b = (FieldReference)b.Operand;
+
+				return _a.FullName == _b.FullName &&
+					_a.DeclaringType.FullName == _b.DeclaringType.FullName &&
+					_a.FieldType.FullName == _b.FieldType.FullName;
+			}
+
+			return false;
+		}
 	}
 }

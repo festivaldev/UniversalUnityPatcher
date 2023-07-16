@@ -7,5 +7,9 @@ namespace UniversalUnityPatcher.Instructions {
 		public virtual Instruction ParseInstruction(ILProcessor processor, AssemblyDefinition assemblyDef, TypeDefinition typeDef, MethodDefinition methodDef, PatchInstruction patchInstruction) {
 			throw new NotImplementedException();
 		}
+
+		public virtual bool CompareInstruction(Instruction a, Instruction b) {
+			return false;
+		}
 	}
 }
