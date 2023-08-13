@@ -7,9 +7,6 @@ using System.Xml.Serialization;
 namespace UniversalUnityPatcher {
 	[XmlRoot]
 	public class PatchDefinition {
-		[XmlAttribute]
-		public string Name;
-
 		[XmlElement("Patch")]
 		public List<Patch> Patches;
 	}

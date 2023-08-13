@@ -1,3 +1,11 @@
+## 1.0.2.1
+- Enabled assembly backups
+- Updated command line parameters to actually useful
+- Updated "Assembly Directory" dialog to actually select folders instead of files
+- Added help texts to command line arguments
+- Command line parameters can now be used with GUI mode
+- Added patch descriptions as tooltips to the "Available Patches" section
+
 ## 1.0.1.1
 - Added patch pre-comparison to prevent accidentally patching assemblies multiple times
 - Added file hash verification to patches

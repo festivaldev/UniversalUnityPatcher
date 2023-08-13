@@ -24,6 +24,7 @@ namespace UniversalUnityPatcher {
 		/// the contents of this method with the code editor.
 		/// </summary>
 		private void InitializeComponent() {
+			this.components = new System.ComponentModel.Container();
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainWindow));
 			this.groupBox2 = new System.Windows.Forms.GroupBox();
 			this.ConsoleWindow = new System.Windows.Forms.RichTextBox();
@@ -37,10 +38,12 @@ namespace UniversalUnityPatcher {
 			this.LoadPatchesButton = new System.Windows.Forms.Button();
 			this.groupBox5 = new System.Windows.Forms.GroupBox();
 			this.groupBox6 = new System.Windows.Forms.GroupBox();
+			this.ResetBackupPathButton = new System.Windows.Forms.Button();
 			this.BackupPathLabel = new System.Windows.Forms.Label();
 			this.SetBackupPathButton = new System.Windows.Forms.Button();
 			this.CreateBackupCheckbox = new System.Windows.Forms.CheckBox();
 			this.label2 = new System.Windows.Forms.Label();
+			this.patchToolTip = new System.Windows.Forms.ToolTip(this.components);
 			this.groupBox2.SuspendLayout();
 			this.groupBox3.SuspendLayout();
 			this.groupBox4.SuspendLayout();
@@ -89,6 +92,7 @@ namespace UniversalUnityPatcher {
 			this.AvailablePatches.Size = new System.Drawing.Size(264, 109);
 			this.AvailablePatches.TabIndex = 0;
 			this.AvailablePatches.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.AvailablePatches_ItemCheck);
+			this.AvailablePatches.MouseMove += new System.Windows.Forms.MouseEventHandler(this.AvailablePatches_MouseMove);
 			// 
 			// PatchButton
 			// 
@@ -178,16 +182,27 @@ namespace UniversalUnityPatcher {
 			// 
 			// groupBox6
 			// 
+			this.groupBox6.Controls.Add(this.ResetBackupPathButton);
 			this.groupBox6.Controls.Add(this.BackupPathLabel);
 			this.groupBox6.Controls.Add(this.SetBackupPathButton);
 			this.groupBox6.Controls.Add(this.CreateBackupCheckbox);
-			this.groupBox6.Enabled = false;
 			this.groupBox6.Location = new System.Drawing.Point(12, 261);
 			this.groupBox6.Name = "groupBox6";
 			this.groupBox6.Size = new System.Drawing.Size(276, 72);
 			this.groupBox6.TabIndex = 5;
 			this.groupBox6.TabStop = false;
 			this.groupBox6.Text = "Backup";
+			// 
+			// ResetBackupPathButton
+			// 
+			this.ResetBackupPathButton.AutoSize = true;
+			this.ResetBackupPathButton.Location = new System.Drawing.Point(222, 14);
+			this.ResetBackupPathButton.Name = "ResetBackupPathButton";
+			this.ResetBackupPathButton.Size = new System.Drawing.Size(48, 23);
+			this.ResetBackupPathButton.TabIndex = 4;
+			this.ResetBackupPathButton.Text = "Reset";
+			this.ResetBackupPathButton.UseVisualStyleBackColor = true;
+			this.ResetBackupPathButton.Click += new System.EventHandler(this.ResetBackupPathButton_Click);
 			// 
 			// BackupPathLabel
 			// 
@@ -207,6 +222,7 @@ namespace UniversalUnityPatcher {
 			this.SetBackupPathButton.TabIndex = 2;
 			this.SetBackupPathButton.Text = "...";
 			this.SetBackupPathButton.UseVisualStyleBackColor = true;
+			this.SetBackupPathButton.Click += new System.EventHandler(this.SetBackupPathButton_Click);
 			// 
 			// CreateBackupCheckbox
 			// 
@@ -219,6 +235,7 @@ namespace UniversalUnityPatcher {
 			this.CreateBackupCheckbox.TabIndex = 0;
 			this.CreateBackupCheckbox.Text = "Create Backup";
 			this.CreateBackupCheckbox.UseVisualStyleBackColor = true;
+			this.CreateBackupCheckbox.CheckedChanged += new System.EventHandler(this.CreateBackupCheckbox_CheckedChanged);
 			// 
 			// label2
 			// 
@@ -278,6 +295,8 @@ namespace UniversalUnityPatcher {
 		private System.Windows.Forms.Label BackupPathLabel;
 		private System.Windows.Forms.Button SetBackupPathButton;
 		private System.Windows.Forms.Label label2;
+		private System.Windows.Forms.Button ResetBackupPathButton;
+		private System.Windows.Forms.ToolTip patchToolTip;
 	}
 }
 

@@ -20,13 +20,49 @@ namespace UniversalUnityPatcher {
 
 		private static string assemblyPath;
 		public static string AssemblyPath {
+			get {
+				return assemblyPath;
+			}
+
 			set {
-				assemblyPath = value;
+				assemblyPath = Path.GetFullPath(value);
 
 				if (Directory.Exists(assemblyPath))
 					assemblyResolver.AddSearchDirectory(assemblyPath);
 			}
 		}
+
+		private static string patchPath;
+		public static string PatchPath {
+			get {
+				return patchPath;
+			}
+
+			set {
+				patchPath = Path.GetFullPath(value);
+
+				if (File.Exists(patchPath))
+					LoadPatches();
+			}
+		}
+
+		public static bool BackupFiles;
+
+		private static string backupPath;
+		public static string BackupPath {
+			get {
+				if (string.IsNullOrWhiteSpace(backupPath)) {
+					return Path.Combine(assemblyPath, "backup");
+				}
+
+				return backupPath;
+			}
+
+			set {
+				backupPath = string.IsNullOrWhiteSpace(value) ? null : Path.GetFullPath(value);
+			}
+		}
+
 
 		public static bool HasLoadedPatches {
 			get {
@@ -40,11 +76,38 @@ namespace UniversalUnityPatcher {
 			}
 		}
 
+		public static List<Patch> EnabledPatches {
+			get {
+				return loadedPatches.Patches.Where(_ => _.IsEnabled).ToList();
+			}
+		}
+
+		public static List<Patch> DisabledPatches {
+			get {
+				return loadedPatches.Patches.Where(_ => !_.IsEnabled).ToList();
+			}
+		}
+
 		private static void ThrowError(string message) {
-			if (MainWindow.Instance != null) {
-				MainWindow.Instance.WriteToConsole($"[ERROR] {message}");
-			} else {
+			WriteToConsole($"[ERROR] {message}");
+			
+			if (!Program.CLIOptions.DisableGUI || !Program.CLIOptions.Silent) {
 				MessageBox.Show(message, "Universal Unity Patcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			}
+		}
+
+		public static int LoadPatches(string path) {
+			patchPath = path;
+
+			return LoadPatches();
+		}
+
+		private static int LoadPatches() {
+			XmlSerializer ser = new XmlSerializer(typeof(PatchDefinition));
+			using (XmlReader reader = XmlReader.Create(patchPath, new XmlReaderSettings { IgnoreComments = true })) {
+				loadedPatches = (PatchDefinition)ser.Deserialize(reader);
+
+				return loadedPatches.Patches.Count();
 			}
 		}
 
@@ -52,10 +115,12 @@ namespace UniversalUnityPatcher {
 			if (loadedPatches.Patches.Count() == 0)
 				return;
 
-			MainWindow.Instance?.ClearConsole();
-			MainWindow.Instance?.WriteToConsole("[INFO] Applying patches...");
+			ClearConsole();
+			WriteToConsole("[INFO] Applying patches...");
 
-			var ignoreAlreadyPatched = false;
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+
+			var ignoreAlreadyPatched = Program.CLIOptions.IgnoreDuplicatePatch;
 
 			foreach (Patch patch in loadedPatches.Patches) {
 				assemblyResolver.Dispose();
@@ -63,30 +128,32 @@ namespace UniversalUnityPatcher {
 				if (!patch.IsEnabled || patch.Assemblies.AppliesTo == null)
 					continue;
 
-				List<string> hashsumMismatches = new List<string>();
+				if (patch.FileHashes?.Count > 0) {
+					List<string> hashsumMismatches = new List<string>();
 
-				foreach (var fileHash in patch.FileHashes) {
-					if (!File.Exists(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) continue;
-					if (fileHash.ValidHashes.Count == 0) continue;
+					foreach (var fileHash in patch.FileHashes) {
+						if (!File.Exists(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) continue;
+						if (fileHash.ValidHashes.Count == 0) continue;
 
-					using (FileStream fileStream = File.OpenRead(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) {
-						using (var sha256 = SHA256.Create()) {
-							var sha256sum = BitConverter.ToString(sha256.ComputeHash(fileStream)).Replace("-", "").ToLowerInvariant();
+						using (FileStream fileStream = File.OpenRead(Path.Combine(Path.GetFullPath(assemblyPath), fileHash.Name))) {
+							using (var sha256 = SHA256.Create()) {
+								var sha256sum = BitConverter.ToString(sha256.ComputeHash(fileStream)).Replace("-", "").ToLowerInvariant();
 
-							if (fileHash.ValidHashes.Find(_ => string.Equals(sha256sum, _, StringComparison.OrdinalIgnoreCase)) == null) {
-								hashsumMismatches.Add(fileHash.Name);
+								if (fileHash.ValidHashes.Find(_ => string.Equals(sha256sum, _, StringComparison.OrdinalIgnoreCase)) == null) {
+									hashsumMismatches.Add(fileHash.Name);
+								}
 							}
 						}
 					}
-				}
 
-				if (hashsumMismatches.Count > 0) {
-					var mismatchList = string.Join("\r\n", hashsumMismatches.Select(_ => $"• {_}"));
-					if (MessageBox.Show($"The following files appear to have been patched already or otherwise modified:\r\n\r\n{mismatchList}\r\n\r\nContinuing can break things horribly. Do you wish to continue patching?", "Hash Sum Mismatch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) {
-						MainWindow.Instance?.WriteToConsole("Patching cancelled by user.");
-						return;
-					} else {
-						ignoreAlreadyPatched = true;
+					if (!ignoreAlreadyPatched && hashsumMismatches.Count > 0) {
+						var mismatchList = string.Join("\r\n", hashsumMismatches.Select(_ => $"• {_}"));
+						if (MessageBox.Show($"The following files appear to have been patched already or otherwise modified:\r\n\r\n{mismatchList}\r\n\r\nContinuing can break things horribly. Do you wish to continue patching?", "Hash Sum Mismatch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) {
+							WriteToConsole("Patching cancelled by user.");
+							return;
+						} else {
+							ignoreAlreadyPatched = true;
+						}
 					}
 				}
 
@@ -124,7 +191,7 @@ namespace UniversalUnityPatcher {
 										if (methodOp.Instructions.Count() == 0)
 											continue;
 
-										MainWindow.Instance?.WriteToConsole($"[INFO] Attempting to patch method \"{methodDef.Name}\" in type/class \"{typeDef.Name}\"... ");
+										WriteToConsole($"[INFO] Attempting to patch method \"{methodDef.Name}\" in type/class \"{typeDef.Name}\"... ");
 
 										Instruction beginInstr = null, prevInstr = null;
 										int startIndex = (methodBody.Instructions.Count - 1);
@@ -295,7 +362,7 @@ namespace UniversalUnityPatcher {
 												methodOp.ExceptionHandler.HandlerEnd < 0 ||
 												methodOp.ExceptionHandler.TryStart < 0 ||
 												methodOp.ExceptionHandler.TryEnd < 0) {
-												MainWindow.Instance?.WriteToConsole("Error: Invalid ExceptionHandler definition");
+												ThrowError("Invalid ExceptionHandler definition.");
 												continue;
 											}
 
@@ -320,7 +387,7 @@ namespace UniversalUnityPatcher {
 										case "TextReplaceOperation": {
 											TextReplaceOperation textReplaceOp = (TextReplaceOperation)patchOp;
 
-											MainWindow.Instance?.WriteToConsole($"[INFO] Replacing string \"{textReplaceOp.TextToReplace}\" with \"{textReplaceOp.ReplacementText}\" in type/class \"{typeDef.Name}\"");
+											WriteToConsole($"[INFO] Replacing string \"{textReplaceOp.TextToReplace}\" with \"{textReplaceOp.ReplacementText}\" in type/class \"{typeDef.Name}\"");
 
 											foreach (MethodDefinition methodDef in typeDef.Methods) {
 												MethodBody methodBody = methodDef.Body;
@@ -357,42 +424,49 @@ namespace UniversalUnityPatcher {
 						}
 					}
 
-					if (!string.IsNullOrWhiteSpace(outputPath)) {
-						if (!Directory.Exists(outputPath)) {
-							Directory.CreateDirectory(outputPath);
+					#region Backup Assembly
+					if (BackupFiles) {
+						if (!Directory.Exists(BackupPath)) {
+							Directory.CreateDirectory(BackupPath);
 						}
 
-						assemblyDef.Write(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll"));
-
-						assemblyResolver.Dispose();
-						assemblyDef.Dispose();
-					} else {
-						assemblyDef.Write(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"));
-
-						assemblyResolver.Dispose();
-						assemblyDef.Dispose();
-
-						if (File.Exists(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"))) {
-							File.Delete(Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
+						if (File.Exists(Path.Combine(BackupPath, patch.Assemblies.AppliesTo))) {
+							WriteToConsole($"[INFO] {assemblyDef.Name.Name}.dll: Backup exists");
+						} else {
+							WriteToConsole($"[INFO] Copying {assemblyDef.Name.Name}.dll to {BackupPath}...");
+							File.Copy(Path.Combine(Path.GetFullPath(assemblyPath), patch.Assemblies.AppliesTo), Path.Combine(BackupPath, patch.Assemblies.AppliesTo));
 						}
+					}
+					#endregion
 
-						File.Move(Path.Combine(assemblyPath, $".{assemblyDef.Name.Name}.dll"), Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll"));
+					#region Write Assembly
+					if (string.IsNullOrWhiteSpace(outputPath)) {
+						outputPath = assemblyPath;
 					}
 
-					MainWindow.Instance?.WriteToConsole($"[INFO] Writing file {Path.Combine(assemblyPath, $"{assemblyDef.Name.Name}.dll")}...");
+					WriteToConsole($"[INFO] Writing file {Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll")}...");
+
+					if (!Directory.Exists(outputPath)) {
+						Directory.CreateDirectory(outputPath);
+					}
+
+					assemblyDef.Write(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll.patched"));
+
+					assemblyResolver.Dispose();
+					assemblyDef.Dispose();
+
+					if (File.Exists(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll"))) {
+						File.Delete(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll"));
+					}
+
+					File.Move(Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll.patched"), Path.Combine(outputPath, $"{assemblyDef.Name.Name}.dll"));
+					#endregion
 				}
 			}
 
-			MainWindow.Instance?.WriteToConsole("Done!");
-		}
+			watch.Stop();
 
-		public static int LoadPatches(string path) {
-			XmlSerializer ser = new XmlSerializer(typeof(PatchDefinition));
-			using (XmlReader reader = XmlReader.Create(path)) {
-				loadedPatches = (PatchDefinition)ser.Deserialize(reader);
-
-				return loadedPatches.Patches.Count();
-			}
+			WriteToConsole($"Done! ({watch.ElapsedMilliseconds}ms)");
 		}
 
 		public static AssemblyDefinition ResolveAssembly(string name, string version = "0.0.0.0") {
@@ -420,6 +494,20 @@ namespace UniversalUnityPatcher {
 			}
 
 			return reference;
+		}
+
+		public static void ClearConsole() {
+			MainWindow.Instance?.ClearConsole();
+		}
+
+		public static void WriteToConsole(string text, bool newLine = true) {
+			MainWindow.Instance?.WriteToConsole(text, newLine);
+
+			if (newLine) {
+				Console.WriteLine(text);
+			} else {
+				Console.Write(text);
+			}
 		}
 	}
 }
