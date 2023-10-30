@@ -52,6 +52,8 @@ namespace UniversalUnityPatcher {
 		public static string BackupPath {
 			get {
 				if (string.IsNullOrWhiteSpace(backupPath)) {
+					if (string.IsNullOrEmpty(assemblyPath)) return string.Empty;
+
 					return Path.Combine(assemblyPath, "backup");
 				}
 
